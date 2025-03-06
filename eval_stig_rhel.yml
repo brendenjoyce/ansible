@@ -1,0 +1,115 @@
+---
+  name: Evaluate STIG
+  hosts: rhel9
+  gather_facts: no
+
+  strategy: linear
+  serial: 10
+  order: sorted
+
+  max_fail_percentage: 100
+
+  vars:
+    config: "{{ vars.hostvars[inventory_hostname].vars }}"
+    evaluate_stig: "Evaluate-STIG_1.2501.0.zip"
+    powershell: "powershell-7.3.3-linux-x64.tar.gz"
+    work_dir: "/stig"
+    unzipped_path: "/stig/Evaluate-STIG"
+
+  tasks:
+    - name: Get YYYYMMDD from mdc-awx2
+      command: bash -c 'date +%Y%m%d'
+      ignore_errors: 'no'
+      delegate_to: mdc-awx2
+      run_once: true
+      register: awx_date_cmd
+
+    - name: Set YYYYMMDD fact
+      set_fact:
+        yyyymmdd: "{{ awx_date_cmd.stdout }}"
+    - name: Create directories
+      file:
+        path: '{{ item.name }}'
+        owner: '{{ item.owner }}'
+        group: '{{ item.group }}'
+        mode: '{{ item.mode }}'
+        state: directory
+      loop:
+        - { name: '/data/share/cyber/STIG Checklists/{{ yyyymmdd }}', owner: 'root', group: 'ms_admins', mode: '0770' }
+      delegate_to: mdc-awx2
+      run_once: true
+
+    - name: Manage YUM packages
+      yum:
+        name: '{{ item.name }}'
+        state: '{{ item.state }}'
+        update_cache: yes
+      loop:
+        - { name: 'lshw', state: 'present' }
+        - { name: 'unzip', state: 'present' }
+        - { name: 'bc', state: 'present' }
+    - name: Run RHEL bash commands
+      command: bash -c '{{ item.command }}'
+      ignore_errors: '{{ item.ignore_errors }}'
+      loop:
+        - { command: 'timeout 60 rm -rf {{ work_dir }}', ignore_errors: 'no' }
+    - name: Create {{ work_dir }}
+      file:
+        path: '{{ work_dir }}'
+        owner: root
+        group: root 
+        mode: 0750
+        state: directory
+    - name: Update SCC config files
+      copy:
+        src: '{{ item.src }}'
+        dest: '{{ item.dest }}'
+        owner: '{{ item.owner }}'
+        group: '{{ item.group }}'
+        mode: '{{ item.mode }}'
+      with_items:
+        - { src: '../software/{{ evaluate_stig }}', dest: '{{ work_dir }}/evaluate-stig.zip', owner: 'root', group: 'root', mode: '0700' }
+        - { src: '../software/{{ powershell }}', dest: '{{ work_dir }}/powershell.tar.gz', owner: 'root', group: 'root', mode: '0700' }
+    - name: Run RHEL bash commands
+      command: bash -c '{{ item.command }}'
+      ignore_errors: '{{ item.ignore_errors }}'
+      loop:
+        - { command: 'tiemout 60 unzip -u -d {{ work_dir }} {{ work_dir }}/evaluate-stig.zip', ignore_errors: 'no' }
+        - { command: 'tiemout 60 mv -f {{ work_dir }}/powershell.tar.gz {{unzipped_path }}/', ignore_errors: 'no' }
+    - name: Refactor Scan-RHEL7.psm1 took out -xdev
+      replace:
+        path: '{{ unzipped_path }}/Modules/Scan-RHEL7_Checks/Scan-RHEL7_Checks.psm1
+        regexp: '^(.*)find / -fstype(.*)$'
+        replace: '\1find / -xdev -fstype\2'
+      when: false
+    - name: Refactor Scan-RHEL8.psm1 took out -xdev
+      replace:
+        path: '{{ unzipped_path }}/Modules/Scan-RHEL8_Checks/Scan-RHEL8_Checks.psm1
+        regexp: '^(.*)find / -fstype(.*)$'
+        replace: '\1find / -xdev -fstype\2'
+      when: false
+    - name: Refactor Scan-RHEL9.psm1 took out -xdev
+      replace:
+        path: '{{ unzipped_path }}/Modules/Scan-RHEL9_Checks/Scan-RHEL9_Checks.psm1
+        regexp: '^(.*)find / -fstype(.*)$'
+        replace: '\1find / -xdev -fstype\2'
+      when: false
+    - name: Run RHEL bash commands 
+      command: bash -c '{{ item.command }}'
+      ignore_errors: '{{ item.ignore_errors }}'
+      loop:
+        - { command: 'timeout 60 chmod 700 {{ unzipped_path }}/Evaluate-STIG_Bash.sh', ignore_errors: 'no' }
+        - { command: 'timeout 2400 {{ unzipped_path }}/Evaluate-STIG_Bash.sh --ScanType Classified --VulnTimeout 10 --Output CKL,CKLB --OutputPath {{ work_dir }}/ >> {{ work_dir }}/output.txt 2>&1', ignore_errors: 'yes' }
+    - name: Copy results to share
+      command: bash -c '{{ item.command }}'
+      ignore_errors: '{{ item.ignore_errors }}'
+      loop:
+        - { command: 'timeout 300 scp -qr {{ inventory_hostname }}:{{ work_dir }}/{{ inventory_hostname | upper }} /data/share/cyber/STIG\ Checklists{{ yyyymmdd }}', ignore_errors: 'yes' }
+      delegate_to: mdc-awx2
+    - name: Add answers to checklists
+      command: bash- c '{{ item.command }}'
+      ignore_errors: '{{ item.ignore_errors }}'
+      loop:
+        - { command: 'find /data/share/cyber/STIG\ Checklists/{{ yyyymmdd }}/{{ inventory_hostname | upper }}/ -type f -name "*.ckl" -exec -exec /data/sa/system-admins-subversion/stig/update_checklist_with_comments.py -f {} \;', ignore_errors: 'no' }
+      delegate_to: mdc-awx2
+    
