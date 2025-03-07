@@ -1,13 +1,16 @@
 ---
-  name: Update RHEL Servers
-  hosts: all
-  gather_facts: no
+-  name: Update RHEL Servers
+   hosts: all
+   gather_facts: no
+   
 
-  strategy: linear
-  serial: 10
-  order: sorted
+   strategy: linear
+   serial: 10
+   order: sorted
 
-  tasks:
+   become: true
+    
+   tasks:
     - name: Clean DNF cache
       command: dnf clean all
       register: clean_result
