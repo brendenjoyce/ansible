@@ -1,6 +1,6 @@
 ---
   name: Update RHEL Servers
-  hosts: rhel9
+  hosts: all
   gather_facts: no
 
   strategy: linear
