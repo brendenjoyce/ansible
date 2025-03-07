@@ -1,3 +1,25 @@
 ---
-  hosts: windows
-  this is a test
+  name: Update RHEL Servers
+  hosts: rhel9
+  gather_facts: no
+
+  strategy: linear
+  serial: 10
+  order: sorted
+
+  tasks:
+    - name: Clean DNF cache
+      command: dnf clean all
+      register: clean_result
+      changed_when: "'Metadata cache removed' in clean_result.stdout"
+
+    - name: Upgrade all packages
+      command: dnf upgrade -y
+      register: upgrade_result
+      changed_when: "'Upgraded' in upgrade_result.stdout"
+
+    - name: Update all packages
+      command: dnf update -y
+      register: update_result
+      changed_when: "'Updated' in update_result.stdout"
+  
