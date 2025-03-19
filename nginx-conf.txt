@@ -1,0 +1,97 @@
+events {
+    worker_connections  4096;  ## Default: 1024
+}
+
+http {
+    access_log /var/log/nginx/access.log;  ## Disable this line?  Used for monitoring only, may not be needed depending on environment
+    error_log /var/log/nginx/error.log warn;  ## Disable this line?  Used for monitoring only, may not be needed depending on environment
+
+    server {
+        listen 443 ssl;
+        server_name stigman.mnet.local mdc-sa3-a-c1 10.3.124.4;
+
+        location /kc/ {
+            proxy_pass              http://localhost:8080/;
+            proxy_set_header        Host               $host;
+            proxy_set_header        X-Real-IP          $remote_addr;
+            proxy_set_header        X-Forwarded-For    $proxy_add_x_forwarded_for;
+            proxy_set_header        X-Forwarded-Host   $host;
+            proxy_set_header        X-Forwarded-Server $host;
+            proxy_set_header        X-Forwarded-Port   $server_port;
+            proxy_set_header        X-Forwarded-Proto  $scheme;
+            proxy_buffer_size       128k;
+            proxy_buffers           4 256k;
+            proxy_busy_buffers_size 256k;
+        }
+
+        location /admin/ {
+            proxy_pass http://localhost:8080/admin/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /resources/ {
+            proxy_pass http://localhost:8080/resources/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /js/ {
+            proxy_pass http://localhost:8080/js/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+        location /realms/ {
+            proxy_pass http://localhost:8080/realms/;
+            proxy_set_header Host $host;
+            proxy_set_header X-Real-IP $remote_addr;
+            proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+            proxy_set_header X-Forwarded-Host $host;
+            proxy_set_header X-Forwarded-Server $host;
+            proxy_set_header X-Forwarded-Port $server_port;
+            proxy_set_header X-Forwarded-Proto $scheme;
+        }
+
+#        location /nginx_status {  ## Disable this section?  Used for monitoring only, may not be needed depending on environment
+#            stub_status; 
+#            allow 10.31.x.x; 
+#            allow all;     
+#        }  
+
+        location /stigman/ {
+            proxy_pass http://localhost:54000/;
+
+        }
+
+        ssl_certificate             /etc/nginx/stigman.mnet.local.crt; ## localhost directory certs
+        ssl_certificate_key         /etc/nginx/stigman.mnet.local.key;
+        root                        /usr/share/nginx/html;
+        client_max_body_size        1024M;
+        ssl_prefer_server_ciphers   on;
+        ssl_client_certificate      /etc/nginx/stigman.mnet.local.crt;
+        ssl_verify_client           optional;
+        ssl_verify_depth            4;
+        error_log                   /var/log/nginx/error.log debug;
+
+        proxy_connect_timeout   600;
+        proxy_send_timeout      600;
+        proxy_read_timeout      600;
+        send_timeout            600;
+    }
+}

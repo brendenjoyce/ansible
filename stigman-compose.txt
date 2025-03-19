@@ -1,0 +1,140 @@
+# STIG Manager behind Proxy with DNS Hostname
+version: '3.7'
+
+networks:
+  stig_network:
+    driver: bridge
+
+services:
+  auth:
+    security_opt:
+      - label:disable
+    image: localhost/keycloakfips-25.0.6:latest
+    ports:
+      - "8080:8080"
+    restart: unless-stopped
+    environment:
+      - KEYCLOAK_ADMIN=admin
+      - KEYCLOAK_ADMIN_PASSWORD=Pa55w0rd
+      - KC_BOOTSTRAP_ADMIN_USERNAME=admin
+      - KC_BOOTSTRAP_ADMIN_PASSWORD=Pa55w0rd
+      - KC_PROXY=edge
+      - KC_HOSTNAME=stigman.mnet.local
+      - KC_HOSTNAME_ADMIN_URL=https://stigman.mnet.local/kc/
+#     - KC_SPI_X509CERT_LOOKUP_PROVIDER=nginx  ## Disabled as CAC auth is not being used
+#     - KC_SPI_X509CERT_LOOKUP_NGINX_SSL_CLIENT_CERT=SSL-CLIENT-CERT  ## Disabled as CAC auth is not being used
+        #- KC_SPI_TRUSTSTORE_FILE_FILE=/tmp/truststore.p12
+        #- KC_SPI_TRUSTSTORE_FILE_PASSWORD=password
+      - KC_TRUSTSTORE_PATHS=/opt/keycloak/conf/truststores/tls-ca-bundle.pem
+      - KC_TLS_HOSTNAME_VERIFIER_=ANY
+      - KC_HTTPS_CERTIFICATE_FILE=/opt/keycloak/conf/truststores/mdc-sa3-a-c1.mnet.local.crt
+      - KC_HTTPS_CERTIFICATE_KEY_FILE=/opt/keycloak/conf/truststores/mdc-sa3-a-c1.mnet.local.key
+      - PROXY_ADDRESS_FORWARDING=true
+        #- KC_FEATURES=fips  
+        #- KEYCLOAK_OPTS=-Dcom.redhat.fips=true -Dorg.bouncycastle.fips.approved_only=true
+        #- JAVA_OPTS=-Djava.security.properties=/opt/keycloak/conf/java.security -classpath /opt/keycloak/providers/bc.jar  
+    networks:
+      - stig_network
+    command: start --import-realm  --features=fips -Djava.security.properties=/opt/keycloak/conf/kc.java.security
+    volumes:
+        #- ./certs/truststore/cert.p12:/tmp/truststore.p12
+      - ./certs/tls-ca-bundle.pem:/opt/keycloak/conf/truststores/tls-ca-bundle.pem:z
+      - ./certs/stigman.mnet.local.crt:/opt/keycloak/conf/truststores/mdc-sa3-a-c1.mnet.local.crt:z
+      - ./certs/stigman.mnet.local.key:/opt/keycloak/conf/truststores/mdc-sa3-a-c1.mnet.local.key:z
+        #- ./certs/truststore/EWS-CA.pem:/opt/keycloak/conf/truststores/EWS-CA.pem:z  
+      - ./kc/stigman_realm.json:/opt/keycloak/data/import/stigman_realm.json
+      - ./kc/h2:/opt/keycloak/data/h2/
+        #- ./certs/ldap.cer:/opt/keycloak/conf/certs/ldap.cer  
+  db:
+    image: docker.io/library/mysql:8.0.41
+    ports:
+      - "50001:3306"
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Password123$%^
+      MYSQL_USER: stigman
+      MYSQL_PASSWORD: Password123$%^
+      MYSQL_DATABASE: stigman
+    cap_add:
+      - SYS_NICE
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - stig_network
+  stigman:
+    image: docker.io/nuwcdivnpt/stig-manager:latest
+    ports:
+      - "54000:54000"
+    restart: unless-stopped
+    environment:
+      - STIGMAN_OIDC_PROVIDER=http://auth:8080/realms/stigman
+      - STIGMAN_CLIENT_OIDC_PROVIDER=https://stigman.mnet.local/realms/stigman
+            #- STIGMAN_OIDC_PROVIDER=https://mdc-sa3-a-c1.mnet.local:8443/realms/stigman
+            #- STIGMAN_CLIENT_OIDC_PROVIDER=https://mdc-sa3-a-c1.mnet.local:8443/realms/stigman
+      - STIGMAN_CLASSIFICATION=S
+      - STIGMAN_DB_HOST=db
+      - STIGMAN_DB_PASSWORD=Password123$%^
+      - STIGMAN_DB_USER=stigman
+      - NODE_EXTRA_CA_CERTS=/tmp/tls-ca-bundle.pem
+    volume:
+      - ./certs/tls-ca-bundle.pem:/home/node/tls/tls-ca-bundle.pem:z
+      - ./certs/tls-ca-bundle.pem:/tmp/tls-ca-bundle.pem:z
+      - ./certs/stigman.mnet.local.crt:/home/node/tls/mdc-sa3-a-c1.mnet.local.crt:z
+	        - ./certs/stigman.mnet.local.key:/opt/keycloak/conf/truststores/mdc-sa3-a-c1.mnet.local.key:z
+        #- ./certs/truststore/EWS-CA.pem:/opt/keycloak/conf/truststores/EWS-CA.pem:z  
+      - ./kc/stigman_realm.json:/opt/keycloak/data/import/stigman_realm.json
+      - ./kc/h2:/opt/keycloak/data/h2/
+        #- ./certs/ldap.cer:/opt/keycloak/conf/certs/ldap.cer  
+  db:
+    image: docker.io/library/mysql:8.0.41
+    ports:
+      - "50001:3306"
+    restart: unless-stopped
+    environment:
+      MYSQL_ROOT_PASSWORD: Password123$%^
+      MYSQL_USER: stigman
+      MYSQL_PASSWORD: Password123$%^
+      MYSQL_DATABASE: stigman
+    cap_add:
+      - SYS_NICE
+    volumes:
+      - ./mysql-data:/var/lib/mysql
+    healthcheck:
+      test: ["CMD", "mysqladmin", "ping", "-h", "db"]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+    networks:
+      - stig_network
+  stigman:
+    image: docker.io/nuwcdivnpt/stig-manager:latest
+    ports:
+      - "54000:54000"
+    restart: unless-stopped
+    environment:
+      - STIGMAN_OIDC_PROVIDER=http://auth:8080/realms/stigman
+      - STIGMAN_CLIENT_OIDC_PROVIDER=https://stigman.mnet.local/realms/stigman
+            #- STIGMAN_OIDC_PROVIDER=https://mdc-sa3-a-c1.mnet.local:8443/realms/stigman
+            #- STIGMAN_CLIENT_OIDC_PROVIDER=https://mdc-sa3-a-c1.mnet.local:8443/realms/stigman
+      - STIGMAN_CLASSIFICATION=S
+      - STIGMAN_DB_HOST=db
+      - STIGMAN_DB_PASSWORD=Password123$%^
+      - STIGMAN_DB_USER=stigman
+      - NODE_EXTRA_CA_CERTS=/tmp/tls-ca-bundle.pem
+    volume:
+      - ./certs/tls-ca-bundle.pem:/home/node/tls/tls-ca-bundle.pem:z
+      - ./certs/tls-ca-bundle.pem:/tmp/tls-ca-bundle.pem:z
+      - ./certs/stigman.mnet.local.crt:/home/node/tls/mdc-sa3-a-c1.mnet.local.crt:z
+      - ./certs/stigman.mnet.local.key:/home/node/tls/mdc-sa3-a-c1.mnet.local.key:z
+    init: true
+    networks:
+      - stig_network
+    depends_on:
+      - auth
+volumes:
+  db_data:

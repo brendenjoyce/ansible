@@ -1,0 +1,4 @@
+Get-Service vmcompute | Restart-Service
+
+
+sudo oscap xccdf eval --profile xccdf_org.ssgproject.content_profile_stig --remediate --results results.xml --report report.html --skip-rule xccdf_org.ssgproject.content_rule_dir_perms_world_writable_root_owned --skip-rule xccdf_org.ssgproject.content_rule_dir_perms_world_writable_system_owned_group --skip-rule xccdf_org.ssgproject.content_rule_no_host_based_files --skip-rule xccdf_org.ssgproject.content_rule_no_user_host_based_files /usr/share/xml/scap/ssg/content/ssg-rhel8-ds.xml
