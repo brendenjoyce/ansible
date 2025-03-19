@@ -1,0 +1,137 @@
+- name: Check Domain Join Status
+  command: bash -c '/usr/bin/id mdc-services-awx && /usr/bin/id mdc-services-acas && /usr/bin/id mdc-services-cv && /usr/bin/id mdc-services-nsx'
+  register: domain_test
+  ignore_errors: yes
+  when: (config.os in 'rhel7|rhel8')
+
+# - name: Debug Domain Status
+  # debug:
+    # msg:
+      # - "cmd: {{domain_test.cmd }}"
+      # - "delta: {{domain_test.delta }}"
+      # - "end: {{domain_test.end }}"
+      # - "msg: {{domain_test.msg }}"
+      # - "rc: {{domain_test.rc }}"
+      # - "start: {{domain_test.start }}"
+      # - "stderr: {{domain_test.stderr }}"
+      # - "stderr_lines: {{domain_test.stderr_lines }}"
+      # - "stdout: {{domain_test.stdout }}"
+      # - "stdout_lines: {{domain_test.stdout_lines }}"
+  # when: (config.os in 'rhel7|rhel8')
+
+# "msg": [
+    # "cmd: ['/usr/bin/id', 'mdc-services-awx']",
+    # "delta: 0:00:00.004786",
+    # "end: 2021-11-15 15:52:54.112041",
+    # "msg: non-zero return code",
+    # "rc: 1",
+    # "start: 2021-11-15 15:52:54.107255",
+    # "stderr: /usr/bin/id: ‘mdc-services-awx’: no such user",
+    # "stderr_lines: ['/usr/bin/id: ‘mdc-services-awx’: no such user']",
+    # "stdout: ",
+    # "stdout_lines: []"
+# ],
+
+- name: System not on domain, attempt join
+  block:
+    - name: Install required packages
+      yum:
+        name:
+          - python36-pexpect
+        state: present
+        enablerepo: "{{ config.os }}_epel"
+      when: (config.os in 'rhel7')
+
+    - name: Install required packages
+      yum:
+        name:
+          - python3-pexpect
+        state: present
+      when: (config.os in 'rhel8')
+
+    - name: RHEL 7 - run net ads join
+      command: bash -c 'net ads join member -U mdc-services-awx@MNET.LOCAL%{{ lookup("env", "VMWARE_PASSWORD") }} -S mdc-ad1.mnet.local'
+      ignore_errors: no
+      retries: 10
+      delay: 10
+      register: result
+      until: result.rc == 0
+      when: (config.os in 'rhel7')
+
+    - name: RHEL 8 - Domain Discover
+      command: bash -c 'realm discover mnet.local'
+      ignore_errors: yes
+      when: (config.os in 'rhel8')
+    
+    #[FIX TAG] Find and delete old AD computer object.
+    
+    - name: Try really hard to upgrade all packages
+      block:
+        - name: RHEL 8 - Domain Join
+          expect:
+            command: bash -c 'realm join -v --user=mdc-services-awx@MNET.LOCAL --computer-ou="OU=linux,OU=Servers,OU=Hosts,OU=Managed Objects" mnet.local'
+            responses:
+                Password for *: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+            timeout: 600
+          retries: 10
+          delay: 10
+          register: result
+          until: result.rc == 0
+          when: (config.os in 'rhel8')
+      rescue:
+        - name: RHEL 8 - Domain Join (Retry without OU)
+          expect:
+            command: bash -c 'realm join -v --user=mdc-services-awx@MNET.LOCAL mnet.local'
+            responses:
+                Password for *: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+            timeout: 600
+          retries: 10
+          delay: 10
+          register: result
+          until: result.rc == 0
+          when: (config.os in 'rhel8')
+          
+    - name: Try really hard to upgrade all packages
+      block:
+        - name: RHEL 9 - Domain Join
+          expect:
+            command: bash -c 'realm join -v --user=mdc-services-awx@MNET.LOCAL --computer-ou="OU=linux,OU=Servers,OU=Hosts,OU=Managed Objects" mnet.local'
+            responses:
+                Password for *: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+            timeout: 600
+          retries: 10
+          delay: 10
+          register: result
+          until: result.rc == 0
+          when: (config.os in 'rhel9')
+      rescue:
+        - name: RHEL 9 - Domain Join (Retry without OU)
+          expect:
+            command: bash -c 'realm join -v --user=mdc-services-awx@MNET.LOCAL mnet.local'
+            responses:
+                Password for *: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+            timeout: 600
+          retries: 10
+          delay: 10
+          register: result
+          until: result.rc == 0
+          when: (config.os in 'rhel9')
+    
+    # - name: RHEL 8 - Domain Join
+      # expect:
+        # command: bash -c 'realm join -v --user=mdc-services-awx@MNET.LOCAL --computer-ou="OU=linux,OU=Servers,OU=Hosts,OU=Managed Objects" mnet.local'
+        # responses:
+            # Password for *: "{{ lookup('env', 'VMWARE_PASSWORD') }}"
+        # timeout: 600
+      # retries: 10
+      # delay: 10
+      # register: result
+      # until: result.rc == 0
+      # when: (config.os in 'rhel8')
+    
+    
+    # realm join -v --user=mdc-services-awx --computer-ou="OU=linux,OU=Servers,OU=Hosts,OU=Managed Objects" mnet.local
+    # realm join -v --use-ldaps --user=mdc-services-awx --computer-ou="OU=linux,OU=Servers,OU=Hosts,OU=Managed Objects" mnet.local
+  when: (config.os in 'rhel7|rhel8') and (domain_test.rc > 0 or (force is defined and force == 'yes'))
+# TASK [Start and enable SSSD service] ******************************************************************************************
+# fatal: [mdc-sa2-a-c1]: FAILED! => {"changed": false, "msg": "Unable to start service sssd: Job for sssd.service failed because the control process exited with error code.\nSee \"systemctl status sssd.service\" and \"journalctl -xe\" for details.\n"}
