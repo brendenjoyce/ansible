@@ -3,7 +3,12 @@
   hosts: all
   become: true
   tasks:
-    - name: Get currently running kernel version
+    - name: Get system uptime before reboot
+      command: uptime -s
+      register: uptime_before
+      changed_when: false
+
+    - name: Get running kernel version
       command: uname -r
       register: current_kernel
       changed_when: false
@@ -18,5 +23,23 @@
         msg: "Running kernel: {{ current_kernel.stdout }}, Latest installed kernel: {{ latest_kernel.stdout }}"
 
     - name: Reboot if kernel update is detected
-      command: /sbin/init 6
+      command: /bin/systemctl reboot
       when: "current_kernel.stdout not in latest_kernel.stdout"
+      async: 1
+      poll: 0
+      ignore_errors: true
+
+    - name: Wait for system to come back online
+      wait_for_connection:
+        delay: 30
+        timeout: 300
+
+    - name: Get system uptime after reboot
+      command: uptime -s
+      register: uptime_after
+      changed_when: false
+
+    - name: Print uptime before and after reboot
+      debug:
+        msg: "Uptime before: {{ uptime_before.stdout }}, Uptime after: {{ uptime_after.stdout }}"
+
