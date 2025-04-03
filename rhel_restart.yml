@@ -14,7 +14,7 @@
       changed_when: false
 
     - name: Get latest installed kernel version
-      command: rpm -q --last kernel | head -n 1 | awk '{print $1}'
+      shell: rpm -q --last kernel | head -n 1 | awk '{print $1}'
       register: latest_kernel
       changed_when: false
 
