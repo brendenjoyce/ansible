@@ -1,0 +1,22 @@
+---
+- name: Check and reboot if needed
+  hosts: all
+  become: true
+  tasks:
+    - name: Get currently running kernel version
+      command: uname -r
+      register: current_kernel
+      changed_when: false
+
+    - name: Get latest installed kernel version
+      command: rpm -q --last kernel | head -n 1 | awk '{print $1}'
+      register: latest_kernel
+      changed_when: false
+
+    - name: Print kernel versions
+      debug:
+        msg: "Running kernel: {{ current_kernel.stdout }}, Latest installed kernel: {{ latest_kernel.stdout }}"
+
+    - name: Reboot if kernel update is detected
+      command: /sbin/init 6
+      when: "current_kernel.stdout not in latest_kernel.stdout"
