@@ -1,11 +1,13 @@
 ---
 - name: Configure sudoers for domain admins
-  hosts: all
+  hosts: rhel9
   become: true
   tasks:
     - name: Ensure sudoers file allows domain admins
       lineinfile:
-        path: /etc/sudoers
-        line: "%domain\ admins@NuestraDomain.com ALL=(ALL)     ALL"
+        path: /etc/sudoers.d/domain_admins
+        line: '%domain\ admins@NuestraDomain.com ALL=(ALL) ALL'
+        create: true
         validate: "visudo -cf %s"
         state: present
+        mode: '0440'
