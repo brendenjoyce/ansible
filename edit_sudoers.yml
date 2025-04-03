@@ -1,6 +1,6 @@
 ---
 - name: Configure sudoers for domain admins
-  hosts: rhel9
+  hosts: all
   become: true
   tasks:
     - name: Ensure sudoers file allows domain admins
