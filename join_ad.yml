@@ -1,0 +1,45 @@
+---
+- name: Configure RHEL 9 and Join Domain
+  hosts: all
+  become: true
+  vars:
+    domain: "NuestraDomain.com"
+    hostname: "rhel9-TAN1.nuestradomain.com"
+    admin_user: "LabAdmin"
+    admin_password: "P@ssw0rd"
+
+  tasks:
+    - name: Set system hostname
+      command: hostnamectl set-hostname {{ hostname }}
+      changed_when: true
+
+    - name: Install required domain join packages
+      dnf:
+        name:
+          - realmd
+          - sssd
+          - sssd-tools
+          - adcli
+          - krb5-workstation
+          - samba-common
+          - oddjob
+          - oddjob-mkhomedir
+        state: present
+
+    - name: Discover domain
+      command: realm discover {{ domain }}
+      register: realm_discovery
+      changed_when: false
+      ignore_errors: true
+
+    - name: Join the machine to the domain
+      command: realm join --user={{ admin_user }} {{ domain }}
+      args:
+        stdin: "{{ admin_password }}"
+      register: join_status
+      changed_when: "'Successfully enrolled' in join_status.stdout"
+      ignore_errors: true
+
+    - name: Display domain join results
+      debug:
+        msg: "{{ join_status.stdout }}"
