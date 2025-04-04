@@ -15,17 +15,7 @@
       changed_when: true
 
     - name: Install required domain join packages
-      dnf:
-        name:
-          - realmd
-          - sssd
-          - sssd-tools
-          - adcli
-          - krb5-workstation
-          - samba-common
-          - oddjob
-          - oddjob-mkhomedir
-        state: present
+      command: dnf install -y realmd sssd sssd-tools adcli krb5-workstation samba-common oddjob oddjob-mkhomedir
 
     - name: Discover domain
       command: realm discover {{ domain }}
