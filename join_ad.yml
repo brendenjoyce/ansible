@@ -4,7 +4,7 @@
   become: true
   vars:
     domain: "NuestraDomain.com"
-    hostname: "rhel9-TAN1.nuestradomain.com"
+    hostname: "RHEL9-TAN1.nuestradomain.com"
     admin_user: "LabAdmin"
     admin_password: "P@ssw0rd"
 
